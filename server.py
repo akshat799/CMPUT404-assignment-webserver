@@ -1,5 +1,6 @@
 #  coding: utf-8 
-import socketserver
+from genericpath import exists
+import socketserver,os
 
 # Copyright 2013 Abram Hindle, Eddie Antonio Santos
 # 
@@ -31,8 +32,66 @@ class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
         self.data = self.request.recv(1024).strip()
-        print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        # print ("Got a request of: %s\n" % self.data)
+        # self.request.sendall(bytearray("OK",'utf-8'))
+        
+        method = self.data.decode('utf-8').split()[0]
+        pathRequest = self.data.decode('utf-8').split()[1]
+
+        
+
+        if method != 'GET':
+            header = "HTTP/1.1 405 Method Not Allowed\r\n"
+            contentType = "Content-Type: text/html\r\n"
+            self.request.sendall(bytearray(header + contentType,'utf-8'))
+
+        else:
+
+            if pathRequest[-1] == "/":
+                currentPath = os.getcwd() + "/www" + pathRequest + "index.html"
+                contentType = "Content-Type: text/html\r\n"
+                header = "HTTP/1.1 200 OK\r\n" 
+                
+            elif pathRequest[-4:] == ".css":
+                currentPath = os.getcwd() + "/www" + pathRequest
+                contentType = "Content-Type: text/css\r\n"
+                header = "HTTP/1.1 200 OK\r\n" 
+
+            elif pathRequest[-5:] == ".html":
+                currentPath = os.getcwd() + "/www" + pathRequest
+                contentType = "Content-Type: text/html\r\n"
+                header = "HTTP/1.1 200 OK\r\n"                 
+
+            else:
+                currentPath = os.getcwd() + "/www" + pathRequest
+                
+
+            if "/.." in pathRequest or "../" in pathRequest:
+                currentPath = os.getcwd() + "/www" + pathRequest
+                contentType = "Content-Type: text/html\r\n"
+                header = "HTTP/1.1 404 Page Not Found\r\n" 
+                self.request.sendall(bytearray(header + contentType,'utf-8'))
+
+            elif os.path.exists(currentPath) == True:
+                try:
+                    file = os.path.abspath(currentPath)
+                    f = open(file,"r")
+                    content = f.read()
+                    f.close()
+                    contentLength = f'Content-Length: {len(content)}\r\n\r\n'    
+                    self.request.sendall(bytearray(header + contentType + contentLength + content, 'utf-8'))
+                except:
+                    contentType = "Content-Type: text/html\r\n"
+                    header = f'HTTP/1.1 301 Moved Permanently\r\n'
+                    location = f'Location: {pathRequest}/\r\n' 
+                    self.request.sendall(bytearray(header + contentType + location,'utf-8'))
+
+            else:
+                header = 'HTTP/1.1 404 Page Not Found\r\n'
+                contentType = "Content-Type: text/html\r\n"
+                self.request.sendall(bytearray(header + contentType,'utf-8'))
+
+            
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
